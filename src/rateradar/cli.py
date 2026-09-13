@@ -13,6 +13,7 @@ import os
 import sys
 from datetime import UTC, datetime
 
+import psycopg
 import typer
 
 from . import db, register
@@ -116,16 +117,22 @@ def collect(
     brand: str = typer.Option("", help="Collect a single brand id"),
 ) -> None:
     """Run one collection pass. Always completes; records what happened."""
-    with db.connect(settings) as conn:
-        result = asyncio.run(
-            run_collection(
-                conn,
-                settings,
-                trigger=trigger,
-                git_sha=os.environ.get("GITHUB_SHA"),
-                only_brand=brand or None,
+    try:
+        with db.connect(settings) as conn:
+            result = asyncio.run(
+                run_collection(
+                    conn,
+                    settings,
+                    trigger=trigger,
+                    git_sha=os.environ.get("GITHUB_SHA"),
+                    only_brand=brand or None,
+                )
             )
-        )
+    except psycopg.OperationalError as exc:
+        # Infrastructure, not a bank. Say so in one line: a wall of traceback in
+        # a scheduled job's log is how the real cause gets missed.
+        typer.echo(f"database connection lost: {exc}".strip())
+        raise typer.Exit(EXIT_FAIL) from exc
     typer.echo(db.dumps(result))
 
 

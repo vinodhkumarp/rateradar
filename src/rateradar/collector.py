@@ -48,6 +48,12 @@ async def _collect_brand(
     error_kind: str | None = None
     error_detail: str | None = None
     known_before = db.current_product_ids(conn, brand.brand_id)
+    # End the read transaction before touching the network. A transaction left
+    # open across HTTP calls sits idle for as long as the bank takes to answer,
+    # and managed Postgres kills idle-in-transaction sessions -- which is
+    # exactly how the first CI run died, where a US runner talking to
+    # Australian banks made every brand take minutes rather than seconds.
+    conn.rollback()
 
     try:
         # 1. List. Paging is sequential by nature (page N+1 depends on N).
@@ -67,9 +73,11 @@ async def _collect_brand(
 
         results = await asyncio.gather(*(_detail(pid) for pid in sorted(summaries)))
 
-        # 3. Store sequentially. All database work for a brand happens on one
-        #    connection inside one transaction, so writes stay consistent and a
-        #    mid-brand failure rolls the whole brand back rather than half of it.
+        # 3. Store sequentially, with the network work already finished. All
+        #    database work for a brand happens on one connection inside one
+        #    transaction, so writes stay consistent and a mid-brand failure rolls
+        #    the whole brand back rather than half of it -- and that transaction
+        #    is now short, because nothing in it waits on a bank.
         for product_id, outcome in results:
             if isinstance(outcome, FetchError):
                 # One bad product must not cost us the brand -- but the reason is
@@ -279,7 +287,12 @@ async def run_collection(
                     client, conn, brand, run_id=run_id, settings=settings, totals=totals
                 )
     except psycopg.Error:
-        db.finish_run(conn, run_id, status="failed", **totals)
+        # The ledger entry is best-effort here: if the connection is what broke,
+        # writing to it will fail too, and that must not replace the real error.
+        try:
+            db.finish_run(conn, run_id, status="failed", **totals)
+        except psycopg.Error:
+            log.error("run %s failed and the ledger could not be updated", run_id)
         raise
 
     db.finish_run(conn, run_id, status="completed", **totals)
