@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from pydantic import Field, PostgresDsn
+from pydantic import Field, PostgresDsn, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -70,6 +70,17 @@ class Settings(BaseSettings):
         "RateRadar/0.1 (open banking product change tracker; "
         "+https://github.com/USERNAME/rateradar)"
     )
+
+    @field_validator("user_agent")
+    @classmethod
+    def _never_blank(cls, value: str) -> str:
+        """An unset CI variable arrives as an empty string, not as absence.
+
+        Sending banks a blank User-Agent is worse than sending a placeholder:
+        the whole point is that someone at the other end can find out who is
+        calling. Fall back rather than let the override erase it.
+        """
+        return value.strip() or cls.model_fields["user_agent"].default
 
     # --- circuit breaker -----------------------------------------------------
     circuit_failure_threshold: int = 5

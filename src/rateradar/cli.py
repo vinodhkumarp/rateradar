@@ -36,6 +36,11 @@ def _setup_logging(verbose: bool) -> None:
 @app.callback()
 def main(verbose: bool = typer.Option(False, "--verbose", "-v")) -> None:
     _setup_logging(verbose)
+    if "USERNAME" in settings.user_agent:
+        log.warning(
+            "RATERADAR_USER_AGENT still contains the placeholder contact URL. "
+            "Banks should be able to find out who is calling them -- see docs/data-use.md"
+        )
 
 
 @app.command()
