@@ -1,0 +1,36 @@
+name: Backup
+
+# The dataset cannot be re-collected retrospectively, so the backup is not
+# optional. Committing the checksum also keeps the repo "active", which stops
+# GitHub disabling the scheduled collector after 60 idle days.
+
+on:
+  schedule:
+    - cron: "41 15 * * 0"
+  workflow_dispatch:
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Dump database
+        env:
+          PGURL: ${{ secrets.RATERADAR_DATABASE_URL }}
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y postgresql-client
+          mkdir -p backups
+          pg_dump "$PGURL" | gzip > "backups/rateradar-$(date +%F).sql.gz"
+          sha256sum backups/*.sql.gz > backups/CHECKSUMS.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: rateradar-backup-${{ github.run_id }}
+          path: backups/*.sql.gz
+          retention-days: 90
+      - name: Commit checksum
+        run: |
+          git config user.name "rateradar-bot"
+          git config user.email "bot@users.noreply.github.com"
+          git add backups/CHECKSUMS.txt || true
+          git commit -m "chore: weekly backup checksum" || echo "nothing to commit"
+          git push || true

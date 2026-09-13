@@ -1,0 +1,53 @@
+# Brands collected in v1 (ADR-0004). One per line; '#' starts a comment.
+#
+# Entries are matched against the CDR register by NAME, case- and
+# punctuation-insensitively, then by unique whole-word substring. A brand id
+# (UUID) also works and wins over any name, for when a name is ambiguous.
+#
+# Every entry is reported when you run discover:
+#     ok        Macquarie Bank  ->  Macquarie Bank Limited
+#     AMBIGUOUS Bank of Queensland  ->  3 brands, none enabled
+#     NO MATCH  Up
+#
+# Nothing is guessed at: an ambiguous or unmatched entry is skipped and named,
+# because quietly collecting 17 banks when you asked for 20 is the failure that
+# ruins the dataset months later.
+#
+# To find an exact name:  rateradar discover --grep macquarie
+# To widen coverage:      add lines here, then rateradar discover --apply
+
+# --- the four majors -------------------------------------------------------
+Commonwealth Bank
+Westpac
+ANZ
+National Australia Bank
+
+# --- brands the majors run separately (own products, own rate decisions) ----
+Bankwest                  # CBA
+St George Bank            # Westpac
+Bank of Melbourne         # Westpac
+BankSA                    # Westpac
+ubank                     # NAB
+
+# --- the next tier ---------------------------------------------------------
+Macquarie Bank
+ING
+Bendigo Bank
+Bank of Queensland
+ME Bank                   # BOQ
+Virgin Money              # BOQ
+Suncorp Bank              # ANZ-owned, still priced separately
+AMP Bank
+HSBC
+Great Southern Bank
+Judo Bank                 # term deposit specialist: moves often
+
+# --- candidates for later --------------------------------------------------
+# Up                      # Bendigo's digital brand; a two-letter name, so use its id
+# People First Bank       # Heritage + People's Choice
+# Bank Australia
+# Beyond Bank
+# Teachers Mutual Bank
+# Newcastle Permanent
+# Greater Bank
+# Rabobank Australia      # term deposits
