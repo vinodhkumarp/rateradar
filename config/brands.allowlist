@@ -17,7 +17,7 @@
 # To widen coverage:      add lines here, then rateradar discover --apply
 
 # --- the four majors -------------------------------------------------------
-Commonwealth Bank
+CommBank
 Westpac
 ANZ
 National Australia Bank
