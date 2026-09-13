@@ -474,7 +474,11 @@ def health_snapshot(conn: Conn) -> dict[str, Any]:
               (SELECT count(*) FROM brand WHERE circuit_open_until > now()) AS circuits_open,
               (SELECT count(*) FROM product_current WHERE is_available) AS products_tracked,
               (SELECT count(*) FROM product_change WHERE detected_at > now() - interval '7 days') AS changes_7d,
-              (SELECT count(*) FROM quarantine WHERE resolved_at IS NULL) AS quarantine_open
+              (SELECT count(*) FROM quarantine WHERE resolved_at IS NULL) AS quarantine_open,
+              (SELECT count(*) FROM brand b WHERE b.is_enabled AND NOT EXISTS (
+                   SELECT 1 FROM product_current c
+                   WHERE c.brand_id = b.brand_id AND c.is_available
+               )) AS brands_without_products
             """
         )
         return one(cur)

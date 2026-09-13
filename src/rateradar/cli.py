@@ -11,7 +11,7 @@ import asyncio
 import logging
 import os
 import sys
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime
 
 import typer
 
@@ -130,39 +130,60 @@ def collect(
 
 
 @app.command()
-def health(strict: bool = typer.Option(False, help="Exit non-zero on warnings")) -> None:
-    """Freshness, brand failures, quarantine backlog, change plausibility."""
+def health(strict: bool = typer.Option(False, help="Exit non-zero on FAIL-level problems")) -> None:
+    """Freshness, brand failures, quarantine backlog, change plausibility.
+
+    Problems come in two severities, and the distinction is the same one
+    ADR-0005 makes about runs: our pipeline being broken is a failure; a bank
+    being broken is a finding. Only the former exits non-zero, because a
+    scheduled job that fails every time a bank misbehaves is a job whose alerts
+    get ignored, and then switched off.
+    """
     with db.connect(settings) as conn:
         snapshot = db.health_snapshot(conn)
 
     now = datetime.now(UTC)
-    problems: list[str] = []
+    fail: list[str] = []
+    warn: list[str] = []
     last_run = snapshot.get("last_completed_run")
 
+    # --- ours to fix: the pipeline itself ---------------------------------
     if last_run is None:
-        problems.append("no completed run yet")
+        fail.append("no completed run yet")
     else:
-        age = now - last_run
-        if age > timedelta(hours=settings.freshness_fail_hours):
-            problems.append(f"stale: last run {age.total_seconds() / 3600:.1f}h ago")
-        elif age > timedelta(hours=settings.freshness_warn_hours):
-            problems.append(f"ageing: last run {age.total_seconds() / 3600:.1f}h ago")
+        age_hours = (now - last_run).total_seconds() / 3600
+        if age_hours > settings.freshness_fail_hours:
+            fail.append(
+                f"stale: last completed run {age_hours:.1f}h ago — is the scheduler running?"
+            )
+        elif age_hours > settings.freshness_warn_hours:
+            warn.append(f"ageing: last completed run {age_hours:.1f}h ago")
 
-    if snapshot["brands_failing"]:
-        problems.append(f"{snapshot['brands_failing']} brand(s) failing repeatedly")
-    if snapshot["quarantine_open"]:
-        problems.append(f"{snapshot['quarantine_open']} payload(s) quarantined")
-    # The check people forget: a silently broken differ looks like a quiet market.
+    # A silently broken differ looks exactly like a quiet market. This is the
+    # check people forget, and it is ours, not a bank's.
     if last_run and snapshot["changes_7d"] < settings.min_changes_per_week:
-        problems.append("no changes detected in 7 days — suspect the differ, not the market")
+        fail.append("no changes detected in 7 days — suspect the differ, not the market")
+
+    # --- theirs to fix: individual banks ----------------------------------
+    if snapshot["brands_failing"]:
+        warn.append(f"{snapshot['brands_failing']} brand(s) failing repeatedly")
+    if snapshot["quarantine_open"]:
+        warn.append(f"{snapshot['quarantine_open']} payload(s) quarantined")
+    if snapshot["brands_without_products"]:
+        warn.append(
+            f"{snapshot['brands_without_products']} enabled brand(s) hold no products "
+            "— check the category filter or the base URI (rateradar probe --brand ...)"
+        )
 
     typer.echo(db.dumps(snapshot))
-    for problem in problems:
-        typer.echo(f"  ! {problem}")
-
-    if not problems:
+    for problem in fail:
+        typer.echo(f"  FAIL {problem}")
+    for problem in warn:
+        typer.echo(f"  warn {problem}")
+    if not fail and not warn:
         typer.echo("  ok")
-    raise typer.Exit(EXIT_FAIL if (problems and strict) else EXIT_OK)
+
+    raise typer.Exit(EXIT_FAIL if (fail and strict) else EXIT_OK)
 
 
 @app.command()

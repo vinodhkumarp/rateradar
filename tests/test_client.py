@@ -332,3 +332,48 @@ async def test_absurd_advertised_versions_are_refused():
         await client.get_product_detail(BASE, "A", stats=BrandStats())
     await client.aclose()
     assert exc.value.kind == ErrorKind.VERSION
+
+
+async def test_a_bank_contradicting_itself_does_not_end_the_negotiation():
+    """BOQ answers 406 to x-v=5 while saying "Versions available: 5".
+
+    Taking that at face value means giving up on a bank that may well serve
+    another version perfectly well. Once everything it advertised has been
+    refused, its advice is worth no more than a guess, so try the rest.
+    """
+    seen: list[str] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        version = request.headers["x-v"]
+        seen.append(version)
+        if version == "4":
+            return httpx.Response(200, json={"data": {"productId": "A"}}, headers={"x-v": "4"})
+        return httpx.Response(406, text="Versions available: 5")
+
+    client = make_client(
+        handler, product_api_version=5, product_api_min_version=3, product_api_max_version=7
+    )
+    stats = BrandStats()
+    payload = await client.get_product_detail(BASE, "A", stats=stats)
+    await client.aclose()
+    assert payload["data"]["productId"] == "A"
+    assert seen[0] == "5"  # asked what it advertised
+    assert "4" in seen  # then kept looking rather than giving up
+    assert stats.api_version == 4
+
+
+async def test_negotiation_still_terminates_when_nothing_works():
+    calls = {"n": 0}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        calls["n"] += 1
+        return httpx.Response(406, text="Versions available: 5")
+
+    client = make_client(
+        handler, product_api_version=5, product_api_min_version=3, product_api_max_version=7
+    )
+    with pytest.raises(FetchError) as exc:
+        await client.get_product_detail(BASE, "A", stats=BrandStats())
+    await client.aclose()
+    assert exc.value.kind == ErrorKind.VERSION
+    assert calls["n"] == 5  # 5,7,6,4,3 — each exactly once, then stop

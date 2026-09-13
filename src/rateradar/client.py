@@ -151,13 +151,22 @@ class CDRClient:
 
         if advertised:
             # The bank told us what it serves; that beats anything we assumed,
-            # even above our blind-stepping ceiling (Westpac detail is v7). If
-            # none of what it offers is usable, stop -- walking the range anyway
-            # is just noise on someone else's API.
-            usable = {
-                v for v in advertised if 1 <= v <= self.settings.product_api_sanity_cap
-            } - tried
-            return max(usable) if usable else None
+            # even above our blind-stepping ceiling (Westpac detail is v7).
+            sane = {v for v in advertised if 1 <= v <= self.settings.product_api_sanity_cap}
+            usable = sane - tried
+            if usable:
+                return max(usable)
+
+            if not sane:
+                # Everything it named is outside what we can use. It answered the
+                # question honestly and the answer is no; guessing is just noise.
+                return None
+
+            # Everything it named, we have already tried and been refused. The
+            # bank is contradicting itself -- BOQ answers 406 to x-v=5 while
+            # naming 5 as available -- so its word is now worth no more than a
+            # guess, and giving up on a bank that may serve another version
+            # perfectly well is the worse error.
 
         remaining = set(range(floor, ceiling + 1)) - tried
         return max(remaining) if remaining else None

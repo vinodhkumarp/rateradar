@@ -9,8 +9,22 @@ procedure here assumes you have forgotten how it works.
 make health          # freshness, last run, failing brands, quarantine backlog
 ```
 
-This runs `rateradar health`, which is also executed at the start of every
-scheduled run. It answers four questions:
+This runs `rateradar health`, which the scheduled workflow also runs before and
+after collecting. Problems come in two severities, and only the first exits
+non-zero under `--strict`:
+
+- **FAIL — ours.** The pipeline is broken: no completed run, staleness beyond
+  the threshold, or no changes detected in a week (which points at the differ,
+  not the market).
+- **warn — theirs.** A bank is broken: repeated failures, quarantined payloads,
+  a brand holding no products.
+
+The split matters operationally. A scheduled job that fails every time some
+bank misbehaves is a job whose alerts get ignored, and then switched off — and
+then the collection stops without anyone noticing, which is the one outcome
+this project cannot survive.
+
+The checks:
 
 | Check | Healthy | Act when |
 | --- | --- | --- |
