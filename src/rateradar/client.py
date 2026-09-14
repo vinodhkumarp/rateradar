@@ -215,11 +215,14 @@ class CDRClient:
                             self._endpoint_dead[self._endpoint_key(url)] = detail
                             raise FetchError(ErrorKind.VERSION, detail, 406)
                         log.info(
-                            "version negotiation: x-v=%s -> %s for %s (bank offers %s)",
-                            current_version,
-                            next_version,
-                            url,
-                            sorted(advertised) or "unknown",
+                            "version negotiated",
+                            extra={
+                                "event": "version_negotiation",
+                                "from_version": current_version,
+                                "to_version": next_version,
+                                "advertised": sorted(advertised),
+                                "endpoint": self._endpoint_key(url),
+                            },
                         )
                         current_version = next_version
                         continue

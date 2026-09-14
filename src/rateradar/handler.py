@@ -27,13 +27,12 @@ from typing import Any
 
 import psycopg
 
-from . import db, register
+from . import db, logs, register
 from .collector import run_collection
 from .config import Settings
 
+logs.configure(json_output=True)
 log = logging.getLogger("rateradar")
-logging.getLogger().setLevel(logging.INFO)
-log.setLevel(logging.INFO)
 
 VALID_COMMANDS = frozenset({"collect", "discover", "migrate", "backup"})
 
@@ -168,7 +167,8 @@ def handler(event: dict[str, Any] | None, context: Any = None) -> dict[str, Any]
         raise ValueError(f"unknown command {command!r}; expected one of {sorted(VALID_COMMANDS)}")
 
     settings = _load_settings()
-    log.info("rateradar %s starting", command)
+    request_id = getattr(context, "aws_request_id", None)
+    log.info("starting", extra={"command": command, "request_id": request_id, "event": "start"})
 
     try:
         if command == "collect":
@@ -184,5 +184,13 @@ def handler(event: dict[str, Any] | None, context: Any = None) -> dict[str, Any]
         log.error("database unavailable: %s", exc)
         raise
 
-    log.info("rateradar %s finished: %s", command, json.dumps(result, default=str))
+    log.info(
+        "finished",
+        extra={
+            "command": command,
+            "request_id": request_id,
+            "event": "finish",
+            "result": result,
+        },
+    )
     return {"command": command, "ok": True, **result}

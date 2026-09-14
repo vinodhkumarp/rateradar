@@ -1,0 +1,20 @@
+# Grafana reads the collector's own database directly. No exporter, no shipper,
+# no agent: the run ledger is already structured, and turning it into log lines
+# first would only lose the structure.
+apiVersion: 1
+
+datasources:
+  - name: RateRadar
+    uid: rateradar-postgres
+    type: postgres
+    access: proxy
+    url: ${RATERADAR_DB_HOST:-postgres}:5432
+    user: ${RATERADAR_DB_USER:-rateradar}
+    database: ${RATERADAR_DB_NAME:-rateradar}
+    isDefault: true
+    secureJsonData:
+      password: ${RATERADAR_DB_PASSWORD:-rateradar}
+    jsonData:
+      sslmode: ${RATERADAR_DB_SSLMODE:-disable}
+      postgresVersion: 1600
+      timescaledb: false

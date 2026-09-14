@@ -1,5 +1,5 @@
 .PHONY: help setup db-up db-down migrate discover collect health test lint typecheck check backup restore \
-        local-up local-deploy local-invoke local-logs local-down package
+        local-up local-deploy local-invoke local-logs local-down package dash dash-down
 
 help:            ## Show this help
 	@grep -E '^[a-z-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN{FS=":.*?## "}{printf "  %-12s %s\n", $$1, $$2}'
@@ -35,6 +35,13 @@ typecheck:       ## Static types
 	mypy src
 
 check: lint typecheck test  ## Everything CI runs
+
+dash:            ## Grafana over the run ledger at http://localhost:3000
+	docker compose up -d postgres grafana
+	@echo "dashboard: http://localhost:3000/d/rateradar-collector"
+
+dash-down:       ## Stop Grafana
+	docker compose stop grafana
 
 package:         ## Build the Lambda deployment zip
 	./deploy/build_package.sh

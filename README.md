@@ -37,6 +37,8 @@ rateradar discover --apply         # write brands, enable the allowlist
 rateradar collect --brand <one-brand-id>   # prove it end to end on one bank
 rateradar changes --days 1                 # see what it found
 rateradar health                           # freshness, failures, quarantine
+
+make dash                                  # Grafana over the run ledger, localhost:3000
 ```
 
 `make check` runs everything CI runs: ruff, mypy, pytest.
@@ -112,6 +114,7 @@ tests/           offline: no database, no bank APIs, no network
 | [`docs/data-model.md`](docs/data-model.md) | You are writing a query, or wondering why the schema looks like that |
 | [`docs/operations.md`](docs/operations.md) | Something is broken, or you have been away for three weeks |
 | [`docs/data-use.md`](docs/data-use.md) | You want to know what this accesses, what it never accesses, and how it behaves |
+| [`deploy/grafana/`](deploy/grafana/) | You want the dashboard, or to point it at a different database |
 | [`docs/roadmap.md`](docs/roadmap.md) | You are deciding what to build next |
 | [`docs/adr/`](docs/adr/) | You disagree with a decision and want to know what it traded away |
 

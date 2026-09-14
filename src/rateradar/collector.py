@@ -85,7 +85,16 @@ async def _collect_brand(
                 products_failed += 1
                 if error_detail is None:
                     error_kind, error_detail = outcome.kind, outcome.detail
-                log.warning("%s/%s detail failed: %s", brand.brand_id, product_id, outcome)
+                log.warning(
+                    "product detail failed",
+                    extra={
+                        "brand_id": brand.brand_id,
+                        "brand": brand.brand_name,
+                        "product_id": product_id,
+                        "kind": outcome.kind,
+                        "detail": outcome.detail,
+                    },
+                )
                 continue
             if _store_product(
                 conn,
@@ -115,14 +124,22 @@ async def _collect_brand(
     except FetchError as exc:
         conn.rollback()
         status, error_kind, error_detail = "failed", exc.kind, exc.detail
-        log.warning("brand %s failed: %s", brand.brand_id, exc)
+        log.warning(
+            "brand failed",
+            extra={
+                "brand_id": brand.brand_id,
+                "brand": brand.brand_name,
+                "kind": exc.kind,
+                "detail": exc.detail,
+            },
+        )
     except psycopg.Error:
         conn.rollback()
         raise  # database problems are infrastructure: fail the run
     except Exception as exc:
         conn.rollback()
         status, error_kind, error_detail = "failed", ErrorKind.TRANSPORT, repr(exc)
-        log.exception("brand %s raised", brand.brand_id)
+        log.exception("brand raised", extra={"brand_id": brand.brand_id, "brand": brand.brand_name})
 
     db.record_run_brand(
         conn,
@@ -145,6 +162,23 @@ async def _collect_brand(
         success=status != "failed",
         settings=settings,
         api_version=stats.api_version,
+    )
+
+    log.info(
+        "brand collected",
+        extra={
+            "event": "brand_finish",
+            "run_id": run_id,
+            "brand_id": brand.brand_id,
+            "brand": brand.brand_name,
+            "status": status,
+            "api_version": stats.api_version,
+            "products_seen": len(seen_ids),
+            "products_failed": products_failed,
+            "snapshots_new": snapshots_new,
+            "http_requests": stats.http_requests,
+            "duration_ms": int((time.monotonic() - started) * 1000),
+        },
     )
 
     totals.bump("brands_ok" if status != "failed" else "brands_failed")
@@ -274,7 +308,10 @@ async def run_collection(
 
     run_id = db.start_run(conn, trigger=trigger, git_sha=git_sha)
     totals = RunTotals(brands_total=len(brands))
-    log.info("run %s starting: %d brands", run_id, len(brands))
+    log.info(
+        "run starting",
+        extra={"run_id": run_id, "brands": len(brands), "trigger": trigger, "event": "run_start"},
+    )
 
     try:
         async with CDRClient(settings) as client:
@@ -296,5 +333,8 @@ async def run_collection(
         raise
 
     db.finish_run(conn, run_id, status="completed", **totals)
-    log.info("run %s finished: %s", run_id, dict(totals))
+    log.info(
+        "run finished",
+        extra={"run_id": run_id, "event": "run_finish", **totals},
+    )
     return {"run_id": run_id, **totals}

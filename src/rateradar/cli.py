@@ -10,13 +10,12 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
-import sys
 from datetime import UTC, datetime
 
 import psycopg
 import typer
 
-from . import db, register
+from . import db, logs, register
 from .collector import run_collection
 from .config import settings
 
@@ -26,17 +25,9 @@ log = logging.getLogger("rateradar")
 EXIT_OK, EXIT_WARN, EXIT_FAIL = 0, 0, 1  # warnings must not fail a scheduled run
 
 
-def _setup_logging(verbose: bool) -> None:
-    logging.basicConfig(
-        level=logging.DEBUG if verbose else logging.INFO,
-        format="%(asctime)s %(levelname)-7s %(name)s: %(message)s",
-        stream=sys.stdout,
-    )
-
-
 @app.callback()
 def main(verbose: bool = typer.Option(False, "--verbose", "-v")) -> None:
-    _setup_logging(verbose)
+    logs.configure(verbose=verbose)
     if "USERNAME" in settings.user_agent:
         log.warning(
             "RATERADAR_USER_AGENT still contains the placeholder contact URL. "

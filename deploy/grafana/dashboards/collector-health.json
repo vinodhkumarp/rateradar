@@ -1,0 +1,552 @@
+{
+  "uid": "rateradar-collector",
+  "title": "RateRadar \u2014 collector health",
+  "description": "Built on the run ledger, not on logs: collection_run and collection_run_brand record every run and every brand's outcome, which is what makes it possible to tell 'nothing changed' from 'we did not look'.",
+  "tags": [
+    "rateradar"
+  ],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "5m",
+  "time": {
+    "from": "now-30d",
+    "to": "now"
+  },
+  "panels": [
+    {
+      "id": 1,
+      "type": "stat",
+      "title": "Hours since last completed run",
+      "description": "Freshness. Above ~14h means a scheduled run was missed; above 30h the scheduler has stopped.",
+      "datasource": {
+        "type": "postgres",
+        "uid": "rateradar-postgres"
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 5,
+        "x": 0,
+        "y": 0
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "rateradar-postgres"
+          },
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT EXTRACT(EPOCH FROM (now() - max(finished_at))) / 3600 AS value\nFROM collection_run WHERE status = 'completed'",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "h"
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "value"
+            },
+            "properties": [
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "green",
+                      "value": null
+                    },
+                    {
+                      "color": "orange",
+                      "value": 14
+                    },
+                    {
+                      "color": "red",
+                      "value": 30
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "auto",
+        "justifyMode": "auto"
+      }
+    },
+    {
+      "id": 2,
+      "type": "stat",
+      "title": "Products tracked",
+      "description": "",
+      "datasource": {
+        "type": "postgres",
+        "uid": "rateradar-postgres"
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 5,
+        "x": 5,
+        "y": 0
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "rateradar-postgres"
+          },
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT count(*) AS value FROM product_current WHERE is_available",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "auto",
+        "justifyMode": "auto"
+      }
+    },
+    {
+      "id": 3,
+      "type": "stat",
+      "title": "Brands holding no products",
+      "description": "An enabled brand yielding nothing is a silent hole, not a success.",
+      "datasource": {
+        "type": "postgres",
+        "uid": "rateradar-postgres"
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 10,
+        "y": 0
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "rateradar-postgres"
+          },
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT count(*) AS value FROM brand b\nWHERE b.is_enabled AND NOT EXISTS (\n  SELECT 1 FROM product_current c WHERE c.brand_id = b.brand_id AND c.is_available)",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "value"
+            },
+            "properties": [
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "green",
+                      "value": null
+                    },
+                    {
+                      "color": "orange",
+                      "value": 1
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "auto",
+        "justifyMode": "auto"
+      }
+    },
+    {
+      "id": 4,
+      "type": "stat",
+      "title": "Quarantined payloads",
+      "description": "Payloads a bank published that could not be parsed. Kept, never dropped.",
+      "datasource": {
+        "type": "postgres",
+        "uid": "rateradar-postgres"
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 5,
+        "x": 14,
+        "y": 0
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "rateradar-postgres"
+          },
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT count(*) AS value FROM quarantine WHERE resolved_at IS NULL",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "value"
+            },
+            "properties": [
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "green",
+                      "value": null
+                    },
+                    {
+                      "color": "orange",
+                      "value": 1
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "auto",
+        "justifyMode": "auto"
+      }
+    },
+    {
+      "id": 5,
+      "type": "stat",
+      "title": "Rate changes, last 7 days",
+      "description": "Zero for a week points at the differ, not at a quiet market.",
+      "datasource": {
+        "type": "postgres",
+        "uid": "rateradar-postgres"
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 5,
+        "x": 19,
+        "y": 0
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "rateradar-postgres"
+          },
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT count(*) AS value FROM product_change\nWHERE change_type = 'RATE_CHANGED' AND detected_at > now() - interval '7 days'",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "auto",
+        "justifyMode": "auto"
+      }
+    },
+    {
+      "id": 6,
+      "type": "timeseries",
+      "title": "Run outcomes",
+      "description": "After the first full collection, new snapshots should be small. A spike is either an RBA week or a normaliser regression.",
+      "datasource": {
+        "type": "postgres",
+        "uid": "rateradar-postgres"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 4
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "rateradar-postgres"
+          },
+          "format": "time_series",
+          "rawQuery": true,
+          "rawSql": "SELECT started_at AS time,\n       brands_ok   AS \"brands ok\",\n       brands_failed AS \"brands failed\",\n       snapshots_new AS \"new snapshots\",\n       changes_emitted AS \"changes\"\nFROM collection_run\nWHERE $__timeFilter(started_at)\nORDER BY started_at",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      }
+    },
+    {
+      "id": 7,
+      "type": "timeseries",
+      "title": "Change events by type",
+      "description": "A rising OTHER_CHANGED count is the signal to extend the classifier.",
+      "datasource": {
+        "type": "postgres",
+        "uid": "rateradar-postgres"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 4
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "rateradar-postgres"
+          },
+          "format": "time_series",
+          "rawQuery": true,
+          "rawSql": "SELECT date_trunc('day', detected_at) AS time,\n       change_type AS metric,\n       count(*) AS value\nFROM product_change\nWHERE $__timeFilter(detected_at)\nGROUP BY 1, 2 ORDER BY 1",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      }
+    },
+    {
+      "id": 8,
+      "type": "table",
+      "title": "Last run, by brand",
+      "description": "Failures first. This is the ledger view that says whether the dataset has holes.",
+      "datasource": {
+        "type": "postgres",
+        "uid": "rateradar-postgres"
+      },
+      "gridPos": {
+        "h": 10,
+        "w": 12,
+        "x": 0,
+        "y": 12
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "rateradar-postgres"
+          },
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT b.brand_name        AS \"brand\",\n       rb.status           AS \"status\",\n       rb.api_version      AS \"x-v\",\n       rb.products_seen    AS \"seen\",\n       rb.products_failed  AS \"failed\",\n       rb.snapshots_new    AS \"new\",\n       rb.http_requests    AS \"requests\",\n       rb.duration_ms      AS \"ms\",\n       rb.error_detail     AS \"error\"\nFROM collection_run_brand rb\nJOIN brand b USING (brand_id)\nWHERE rb.run_id = (SELECT max(run_id) FROM collection_run WHERE status = 'completed')\nORDER BY (rb.status = 'ok'), b.brand_name",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "status"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-text"
+                }
+              },
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "ok": {
+                        "color": "green",
+                        "index": 0
+                      },
+                      "partial": {
+                        "color": "orange",
+                        "index": 1
+                      },
+                      "failed": {
+                        "color": "red",
+                        "index": 2
+                      }
+                    }
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": 9,
+      "type": "table",
+      "title": "Recent rate movements",
+      "description": "The product. Every row is a bank moving a rate, with the size of the move in basis points.",
+      "datasource": {
+        "type": "postgres",
+        "uid": "rateradar-postgres"
+      },
+      "gridPos": {
+        "h": 10,
+        "w": 12,
+        "x": 12,
+        "y": 12
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "rateradar-postgres"
+          },
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT c.detected_at   AS \"detected\",\n       b.brand_name    AS \"brand\",\n       c.product_id    AS \"product\",\n       round(c.delta_bps, 1) AS \"bps\",\n       c.field_path    AS \"field\"\nFROM product_change c\nJOIN brand b USING (brand_id)\nWHERE c.change_type = 'RATE_CHANGED'\n  AND c.delta_bps IS NOT NULL\n  AND $__timeFilter(c.detected_at)\nORDER BY c.detected_at DESC\nLIMIT 100",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "bps"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-text"
+                }
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "red",
+                      "value": null
+                    },
+                    {
+                      "color": "green",
+                      "value": 0
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": 10,
+      "type": "table",
+      "title": "Negotiated API version across the estate",
+      "description": "Version drift. The standard is one thing; the implementations are another.",
+      "datasource": {
+        "type": "postgres",
+        "uid": "rateradar-postgres"
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 24,
+        "x": 0,
+        "y": 22
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "rateradar-postgres"
+          },
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT negotiated_api_version AS \"x-v\", count(*) AS \"brands\",\n       string_agg(brand_name, ', ' ORDER BY brand_name) AS \"which\"\nFROM brand WHERE is_enabled AND negotiated_api_version IS NOT NULL\nGROUP BY 1 ORDER BY 1",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      }
+    }
+  ]
+}

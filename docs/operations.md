@@ -45,6 +45,48 @@ floor catches it.
 
 Runs are idempotent. Re-running any of them is always safe.
 
+## Seeing what is happening
+
+Two views, and the distinction matters: the **ledger** is structured data about
+runs; the **logs** are what the code said while running. Reach for the ledger
+first — it was designed, the logs were printed.
+
+### Dashboard (the ledger)
+
+```bash
+make dash     # http://localhost:3000/d/rateradar-collector
+```
+
+Grafana reads the collector's database directly — no exporter, no shipper, no
+agent. Freshness, per-brand outcomes from the last run, change events by type,
+recent rate movements, and version drift across the estate.
+
+It points at the local Postgres by default. To aim it at Neon instead, set
+`RATERADAR_DB_HOST`, `RATERADAR_DB_USER`, `RATERADAR_DB_PASSWORD`,
+`RATERADAR_DB_NAME` and `RATERADAR_DB_SSLMODE=require` before `make dash`. The
+same dashboard JSON imports into Grafana Cloud's free tier if you would rather
+not run it at all.
+
+### Logs (what the code said)
+
+The Lambda emits one JSON object per line, so CloudWatch Logs Insights can
+filter on fields rather than pattern-match text:
+
+```
+fields @timestamp, brand, status, products_failed, duration_ms
+| filter event = "brand_finish" and status != "ok"
+| sort @timestamp desc
+```
+
+```
+fields @timestamp, brand, kind, detail
+| filter kind = "version"
+| stats count() by brand
+```
+
+Locally the same calls print human-readable lines. Force either format with
+`RATERADAR_LOG_FORMAT=json` or `=text`.
+
 ## Common situations
 
 ### The workflow has stopped running
