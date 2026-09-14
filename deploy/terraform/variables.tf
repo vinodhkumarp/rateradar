@@ -76,3 +76,14 @@ variable "deploy_branch" {
   type        = string
   default     = "main"
 }
+
+variable "backup_retention_days" {
+  description = <<-EOT
+    How long weekly dumps are kept. A year of weekly backups of this dataset is
+    a few hundred megabytes, which costs cents; the S3 free tier covers only the
+    first 12 months, so this is the one line item that eventually shows up on a
+    bill. Worth every cent of it.
+  EOT
+  type        = number
+  default     = 365
+}

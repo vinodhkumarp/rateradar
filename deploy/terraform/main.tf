@@ -56,6 +56,7 @@ resource "aws_lambda_function" "collector" {
       # The connection string is read from Parameter Store at cold start, not
       # injected here, so it never appears in the function's configuration.
       RATERADAR_DATABASE_URL_PARAM = aws_ssm_parameter.database_url.name
+      RATERADAR_BACKUP_BUCKET      = aws_s3_bucket.backups.bucket
       PYTHONUNBUFFERED             = "1"
     }
   }
@@ -104,12 +105,81 @@ data "aws_iam_policy_document" "lambda" {
     actions   = ["kms:Decrypt"]
     resources = ["arn:aws:kms:${var.region}:${data.aws_caller_identity.current.account_id}:alias/aws/ssm"]
   }
+
+  statement {
+    sid     = "WriteBackups"
+    actions = ["s3:PutObject"]
+    # Write only. The function has no reason to read or delete a backup, and a
+    # collector that cannot delete its own backups is one fewer way to lose them.
+    resources = ["${aws_s3_bucket.backups.arn}/backups/*"]
+  }
 }
 
 resource "aws_iam_role_policy" "lambda" {
   name   = "${var.name}-lambda"
   role   = aws_iam_role.lambda.id
   policy = data.aws_iam_policy_document.lambda.json
+}
+
+# ---------------------------------------------------------------------------
+# Backups. The collected history cannot be re-gathered retrospectively -- a
+# month of rate movements exists nowhere else once Neon loses it -- so a second
+# copy is not optional, whatever the database tier promises.
+# ---------------------------------------------------------------------------
+resource "aws_s3_bucket" "backups" {
+  bucket = "${var.name}-backups-${data.aws_caller_identity.current.account_id}"
+}
+
+resource "aws_s3_bucket_public_access_block" "backups" {
+  bucket                  = aws_s3_bucket.backups.id
+  block_public_acls       = true
+  block_public_policy     = true
+  ignore_public_acls      = true
+  restrict_public_buckets = true
+}
+
+resource "aws_s3_bucket_server_side_encryption_configuration" "backups" {
+  bucket = aws_s3_bucket.backups.id
+
+  rule {
+    apply_server_side_encryption_by_default {
+      sse_algorithm = "AES256"
+    }
+  }
+}
+
+resource "aws_s3_bucket_versioning" "backups" {
+  bucket = aws_s3_bucket.backups.id
+
+  versioning_configuration {
+    # Protects against a bad backup overwriting a good one, and against a
+    # delete -- accidental or otherwise.
+    status = "Enabled"
+  }
+}
+
+resource "aws_s3_bucket_lifecycle_configuration" "backups" {
+  bucket = aws_s3_bucket.backups.id
+  depends_on = [aws_s3_bucket_versioning.backups]
+
+  rule {
+    id     = "expire-old-backups"
+    status = "Enabled"
+
+    filter {}
+
+    expiration {
+      days = var.backup_retention_days
+    }
+
+    noncurrent_version_expiration {
+      noncurrent_days = 30
+    }
+
+    abort_incomplete_multipart_upload {
+      days_after_initiation = 7
+    }
+  }
 }
 
 # ---------------------------------------------------------------------------
@@ -193,6 +263,28 @@ resource "aws_scheduler_schedule" "discover" {
 
     retry_policy {
       maximum_retry_attempts = 1
+    }
+  }
+}
+
+resource "aws_scheduler_schedule" "backup" {
+  name        = "${var.name}-backup"
+  description = "Weekly dump of every table to S3"
+
+  flexible_time_window {
+    mode = "OFF"
+  }
+
+  schedule_expression          = "cron(41 3 ? * SUN *)"
+  schedule_expression_timezone = "Australia/Sydney"
+
+  target {
+    arn      = aws_lambda_function.collector.arn
+    role_arn = aws_iam_role.scheduler.arn
+    input    = jsonencode({ command = "backup" })
+
+    retry_policy {
+      maximum_retry_attempts = 2
     }
   }
 }

@@ -48,3 +48,19 @@ def test_settings_are_cached_across_invocations(monkeypatch):
     first = handler_module._load_settings()
     handler_module.handler({})
     assert handler_module._load_settings() is first
+
+
+def test_backup_is_dispatched(monkeypatch):
+    monkeypatch.setattr(handler_module, "_backup", lambda s: {"total_rows": 1234})
+    result = handler_module.handler({"command": "backup"})
+    assert result["command"] == "backup"
+    assert result["total_rows"] == 1234
+
+
+def test_backup_without_a_bucket_fails_loudly(monkeypatch):
+    """Silently skipping the upload would leave a backup that does not exist."""
+    monkeypatch.delenv("RATERADAR_BACKUP_BUCKET", raising=False)
+    import pytest
+
+    with pytest.raises(RuntimeError, match="RATERADAR_BACKUP_BUCKET"):
+        handler_module.handler({"command": "backup"})

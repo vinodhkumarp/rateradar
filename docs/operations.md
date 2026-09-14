@@ -85,6 +85,42 @@ fixture from the quarantined payload, extend the model, replay. Many banks at
 once means the CDR standard version moved — check `negotiated_api_version`
 across brands and bump the preferred version.
 
+### Restoring from backup
+
+Weekly dumps land in S3 as gzipped CSV, one file per table plus a manifest:
+
+    s3://rateradar-backups-<account>/backups/2026/09/21/034100/
+        manifest.json          rows and bytes per table, and when it was taken
+        brand.csv.gz
+        product_snapshot.csv.gz
+        ...
+
+To restore into an empty database:
+
+```bash
+aws s3 sync s3://rateradar-backups-<account>/backups/2026/09/21/034100/ ./restore/
+cd restore && gunzip *.gz
+
+rateradar migrate                     # create the schema first
+
+# Order matters: foreign keys point at brand and collection_run.
+for t in schema_migration brand collection_run collection_run_brand \
+         product_snapshot product_current product_change quarantine; do
+  psql "$RATERADAR_DATABASE_URL" -c "\copy $t FROM '$t.csv' WITH (FORMAT csv, HEADER)"
+done
+
+psql "$RATERADAR_DATABASE_URL" -c "SELECT setval(pg_get_serial_sequence('collection_run','run_id'), max(run_id)) FROM collection_run;"
+psql "$RATERADAR_DATABASE_URL" -c "SELECT setval(pg_get_serial_sequence('product_snapshot','snapshot_id'), max(snapshot_id)) FROM product_snapshot;"
+psql "$RATERADAR_DATABASE_URL" -c "SELECT setval(pg_get_serial_sequence('product_change','change_id'), max(change_id)) FROM product_change;"
+```
+
+Then check the row counts against `manifest.json`. That is what the manifest is
+for: a backup nobody has verified is a backup nobody should rely on.
+
+**Do this once, deliberately, against a scratch database.** An untested restore
+is not a backup, and this dataset cannot be re-collected — the rate movements of
+a given week exist nowhere else once they are gone.
+
 ### The database is full or suspended
 
 Free-tier Postgres suspends when idle and can be reclaimed if untouched for

@@ -8,13 +8,13 @@ from __future__ import annotations
 
 import json
 import logging
-from collections.abc import Iterator
+from collections.abc import Buffer, Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import datetime
 from decimal import Decimal
 from pathlib import Path
-from typing import Any
+from typing import Any, Protocol
 
 import psycopg
 from psycopg.rows import dict_row
@@ -458,6 +458,71 @@ def quarantine(
             ),
         )
     conn.commit()
+
+
+# --------------------------------------------------------------------------
+# backup
+#
+# Lambda has no pg_dump, so backups are taken with SQL COPY instead. The output
+# is plain CSV per table: restorable with \copy, readable without this codebase,
+# and not dependent on a Postgres version matching.
+# --------------------------------------------------------------------------
+BACKUP_TABLES: tuple[str, ...] = (
+    "schema_migration",
+    "brand",
+    "collection_run",
+    "collection_run_brand",
+    "product_snapshot",
+    "product_current",
+    "product_change",
+    "quarantine",
+)
+
+
+class ByteSink(Protocol):
+    """Anything bytes can be written to -- a file, a gzip stream, a buffer.
+
+    Takes a buffer rather than bytes specifically: psycopg's COPY yields
+    memoryview chunks, and copying each one into bytes purely to satisfy a type
+    annotation would be real work done for no reason.
+    """
+
+    def write(self, data: Buffer, /) -> int: ...
+
+
+def copy_table_csv(conn: Conn, table: str, sink: ByteSink) -> int:
+    """Stream one table out as CSV. Returns bytes written.
+
+    The table name is interpolated into SQL, so it is checked against the fixed
+    list above rather than trusted -- a habit worth keeping even where the only
+    caller passes a constant.
+    """
+    if table not in BACKUP_TABLES:
+        raise ValueError(f"{table!r} is not a backup table")
+
+    written = 0
+    with (
+        conn.cursor() as cur,
+        cur.copy(f"COPY {table} TO STDOUT WITH (FORMAT csv, HEADER)") as copy,
+    ):
+        for chunk in copy:
+            sink.write(chunk)
+            written += len(chunk)
+    return written
+
+
+def row_counts(conn: Conn) -> dict[str, int]:
+    """Row count per table, recorded alongside a backup.
+
+    A backup nobody can verify is a backup nobody should trust: these counts are
+    what a restore is checked against.
+    """
+    counts: dict[str, int] = {}
+    with conn.cursor() as cur:
+        for table in BACKUP_TABLES:
+            cur.execute(f"SELECT count(*) AS n FROM {table}")
+            counts[table] = int(one(cur)["n"])
+    return counts
 
 
 # --------------------------------------------------------------------------

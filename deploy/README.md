@@ -64,16 +64,21 @@ aws logs tail /aws/lambda/rateradar --follow
 | Refresh brands | same, with `{"command":"discover"}` |
 | Watch logs | `aws logs tail /aws/lambda/rateradar --follow` |
 | Inspect data | `rateradar runs` / `rateradar health` locally, pointed at the same database |
-| Pause collection | disable both schedules in EventBridge, or `terraform destroy -target=aws_scheduler_schedule.collect` |
+| Pause collection | disable the schedules in EventBridge, or `terraform destroy -target=aws_scheduler_schedule.collect` |
+| Back up now | `aws lambda invoke --function-name rateradar --payload '{"command":"backup"}' --cli-binary-format raw-in-base64-out /dev/stdout` |
+| List backups | `aws s3 ls s3://$(terraform -chdir=deploy/terraform output -raw backup_bucket)/backups/ --recursive` |
+| Restore | see [`docs/operations.md`](../docs/operations.md#restoring-from-backup) |
 
 The CLI still works locally against the same database, which is where you read
 the ledger and investigate. Lambda runs the pipeline; it is not where you debug it.
 
 ## Cost
 
-Zero, and structurally so: Lambda's free tier is perpetual and this uses a
+Near zero, and structurally so: Lambda's free tier is perpetual and this uses a
 couple of percent of it, standard SSM parameters are free, and ten CloudWatch
-alarms are free. The things that could cost money — a runaway retry loop, log
+alarms are free. The one eventual line item is S3: its free tier lasts only 12
+months, after which a year of weekly dumps costs a few cents a month. That is
+the cheapest insurance in this project. The things that could cost money — a runaway retry loop, log
 retention forever — are bounded by `maximum_retry_attempts = 1`, a 900s
 timeout, and 14-day log retention.
 

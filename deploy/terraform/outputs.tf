@@ -19,3 +19,8 @@ output "schedules" {
     discover = aws_scheduler_schedule.discover.schedule_expression
   }
 }
+
+output "backup_bucket" {
+  value       = aws_s3_bucket.backups.bucket
+  description = "aws s3 ls s3://<this>/backups/ --recursive"
+}
