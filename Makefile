@@ -1,4 +1,5 @@
-.PHONY: help setup db-up db-down migrate discover collect health test lint typecheck check backup restore
+.PHONY: help setup db-up db-down migrate discover collect health test lint typecheck check backup restore \
+        local-up local-deploy local-invoke local-logs local-down package
 
 help:            ## Show this help
 	@grep -E '^[a-z-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN{FS=":.*?## "}{printf "  %-12s %s\n", $$1, $$2}'
@@ -34,6 +35,31 @@ typecheck:       ## Static types
 	mypy src
 
 check: lint typecheck test  ## Everything CI runs
+
+package:         ## Build the Lambda deployment zip
+	./deploy/build_package.sh
+
+local-up:        ## Start Floci + Postgres, deploy the function locally, migrate
+	./deploy/local_floci.sh
+
+local-deploy:    ## Rebuild and update the local function only
+	./deploy/build_package.sh
+	AWS_ENDPOINT_URL=$${AWS_ENDPOINT_URL:-http://localhost:4566} \
+	AWS_ACCESS_KEY_ID=test AWS_SECRET_ACCESS_KEY=test AWS_DEFAULT_REGION=ap-southeast-2 \
+	aws lambda update-function-code --function-name rateradar \
+	  --zip-file fileb://build/rateradar.zip >/dev/null && echo "local function updated"
+
+local-invoke:    ## Invoke locally: make local-invoke CMD=collect|discover|backup|migrate
+	./deploy/local_invoke.sh $(or $(CMD),collect)
+
+local-logs:      ## Follow the emulated function's logs
+	AWS_ENDPOINT_URL=$${AWS_ENDPOINT_URL:-http://localhost:4566} \
+	AWS_ACCESS_KEY_ID=test AWS_SECRET_ACCESS_KEY=test AWS_DEFAULT_REGION=ap-southeast-2 \
+	aws logs tail /aws/lambda/rateradar --follow
+
+local-down:      ## Stop Floci and Postgres (data in Postgres survives)
+	floci stop || true
+	docker compose down
 
 backup:          ## Dump the database
 	@mkdir -p backups

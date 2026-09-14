@@ -10,6 +10,49 @@ EventBridge Scheduler  ──►  Lambda (ap-southeast-2)  ──►  Neon Postg
                               CloudWatch logs + 2 alarms ──► SNS ──► email
 ```
 
+## Running it locally
+
+The collector is a CLI, so the fastest loop stays what it always was:
+
+```bash
+make db-up && rateradar migrate && rateradar collect --brand <id>
+```
+
+That exercises the collector. It does not exercise the *Lambda* — the handler,
+the Parameter Store lookup, the S3 write, the packaged zip actually importing on
+Linux. [Floci](https://floci.io/) covers that gap: an AWS emulator that runs
+Lambda in real Docker containers.
+
+```bash
+curl -fsSL https://floci.io/install.sh | sh     # once
+make local-up                                   # Floci + Postgres + deploy + migrate
+make local-invoke CMD=collect                   # a real collection pass, locally
+make local-invoke CMD=backup                    # writes to the emulated bucket
+make local-logs
+make local-down
+```
+
+`make local-up` is idempotent; run it again after changing code, or
+`make local-deploy` to skip straight to updating the function.
+
+Two details that make this worth having rather than a toy:
+
+- **The function reads its connection string from Parameter Store locally too.**
+  Testing a different code path than production runs is how you ship a broken
+  one — the SSM lookup, the caching, the whole path runs here.
+- **Inside a Lambda container, `localhost` is that container.** The database and
+  the emulator are on the host, so the function is configured with
+  `host.docker.internal`. On Linux without Docker Desktop, set
+  `RATERADAR_LOCAL_HOST_ALIAS=172.17.0.1`.
+
+The real Terraform is deliberately *not* run against Floci: it would share the
+state file with production, and Terraform would then believe the real function
+had been replaced by an emulated one. The local stack needs four resources, and
+a short script is easier to trust than a second state file is to keep honest.
+
+Note that `collect` talks to real banks even locally — the same politeness rules
+apply, so don't loop it.
+
 ## First deploy
 
 Prerequisites: an AWS account, Terraform ≥ 1.6, the AWS CLI configured, and

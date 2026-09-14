@@ -5,8 +5,8 @@ name: Backup
 # GitHub disabling the scheduled collector after 60 idle days.
 
 on:
-  schedule:
-    - cron: "41 15 * * 0"
+#  schedule:
+#    - cron: "41 15 * * 0"
   workflow_dispatch:
 
 jobs:

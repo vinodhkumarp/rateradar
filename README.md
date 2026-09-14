@@ -41,6 +41,10 @@ rateradar health                           # freshness, failures, quarantine
 
 `make check` runs everything CI runs: ruff, mypy, pytest.
 
+To exercise the deployed shape — the Lambda handler, Parameter Store, the S3
+backup — rather than just the collector, `make local-up` stands the whole thing
+up locally on [Floci](https://floci.io/). See [`deploy/README.md`](deploy/README.md).
+
 ## How it works
 
 ```
@@ -93,6 +97,7 @@ src/rateradar/
   collector.py   the run: fetch → normalise → store → diff
   cli.py         every operation the runbook mentions
 
+deploy/          Lambda packaging, Terraform, local Floci stack
 migrations/      SQL, applied by `rateradar migrate`
 docs/            architecture, data model, ADRs, runbook, roadmap
 tests/           offline: no database, no bank APIs, no network
