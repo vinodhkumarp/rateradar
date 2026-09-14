@@ -1,12 +1,12 @@
 name: Collect
 
 on:
-  schedule:
-    # Twice a day, off the hour to avoid the stampede. Rates rarely move more
-    # than once a day, so a higher frequency buys precision nobody needs and
-    # spends someone else's capacity to get it (see docs/data-use.md).
-    - cron: "17 8,20 * * *"    # 18:17 and 06:17 Sydney time
-    - cron: "23 4 * * 1"       # weekly discovery refresh (Mondays)
+#  schedule:
+#    # Twice a day, off the hour to avoid the stampede. Rates rarely move more
+#    # than once a day, so a higher frequency buys precision nobody needs and
+#    # spends someone else's capacity to get it (see docs/data-use.md).
+#    - cron: "17 8,20 * * *"    # 18:17 and 06:17 Sydney time
+#    - cron: "23 4 * * 1"       # weekly discovery refresh (Mondays)
   workflow_dispatch:
     inputs:
       brand:

@@ -12,3 +12,10 @@ backups/*.sql.gz
 dist/
 .idea/
 .DS_Store
+
+# terraform
+deploy/terraform/.terraform/
+deploy/terraform/*.tfstate*
+deploy/terraform/.placeholder.zip
+deploy/terraform/*.tfvars
+build/

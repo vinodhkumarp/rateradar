@@ -41,6 +41,9 @@ class Settings(BaseSettings):
     #  masks the real error. Set it once you have verified a source yourself.
     fallback_endpoint_list_url: str = ""
     brand_allowlist_file: Path = REPO_ROOT / "config" / "brands.allowlist"
+    #  Repo-relative locally, /var/task-relative on Lambda, so both of these
+    #  are settings rather than constants (ADR-0006).
+    migrations_dir: Path = REPO_ROOT / "migrations"
 
     # --- CDR product API -----------------------------------------------------
     # Versions are per ENDPOINT, not per bank: Westpac serves the product list at

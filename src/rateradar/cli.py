@@ -48,7 +48,7 @@ def main(verbose: bool = typer.Option(False, "--verbose", "-v")) -> None:
 def migrate() -> None:
     """Apply pending SQL migrations."""
     with db.connect(settings) as conn:
-        applied = db.migrate(conn)
+        applied = db.migrate(conn, settings.migrations_dir)
     typer.echo(f"applied {len(applied)} migration(s): {', '.join(applied) or 'none'}")
 
 

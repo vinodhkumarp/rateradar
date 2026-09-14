@@ -1,0 +1,65 @@
+# Copy this to .github/workflows/deploy.yml.
+#
+# It lives here rather than there because remote tooling cannot write workflow
+# files — a deliberate guard on anything that runs with your credentials.
+#
+# Prerequisites, from `terraform output`:
+#   secret AWS_DEPLOY_ROLE = the deploy_role_arn output
+# No access keys: the role is assumed via OIDC, so nothing long-lived is stored.
+
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "src/**"
+      - "migrations/**"
+      - "config/brands.allowlist"
+      - "deploy/build_package.sh"
+      - ".github/workflows/deploy.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write # required to request the OIDC token
+
+concurrency:
+  group: deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Build package
+        run: ./deploy/build_package.sh
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE }}
+          aws-region: ap-southeast-2
+
+      - name: Update function code
+        run: |
+          aws lambda update-function-code \
+            --function-name rateradar \
+            --zip-file fileb://build/rateradar.zip \
+            --publish >/dev/null
+          aws lambda wait function-updated --function-name rateradar
+
+      # Deploying without running it is how you find out twelve hours later.
+      - name: Smoke test — migrate only
+        run: |
+          aws lambda invoke \
+            --function-name rateradar \
+            --payload '{"command":"migrate"}' \
+            --cli-binary-format raw-in-base64-out \
+            response.json >/dev/null
+          cat response.json
+          grep -q '"ok": true' response.json
