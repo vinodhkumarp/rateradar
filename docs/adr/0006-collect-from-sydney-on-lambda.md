@@ -33,6 +33,15 @@ Manage the infrastructure with Terraform.
   cold start. Standard parameters are free; Secrets Manager is not, and rotation
   is not a requirement here.
 - Deployment authenticates by GitHub OIDC. No AWS access keys exist anywhere.
+  The trust policy matches `sub` against both subject formats, plus the
+  `repository` and `ref` claims. GitHub changed its default for repositories
+  created after 15 July 2026 to embed immutable owner and repository IDs, so
+  the `repo:owner/name:ref:...` form every tutorial shows no longer matches a
+  new repo -- and IAM separately refuses any GitHub trust policy that does not
+  constrain `sub` or `job_workflow_ref`, so dropping `sub` is not an option.
+  Both failure modes are opaque: a bare "Not authorized" from STS, and a
+  MalformedPolicyDocument from IAM. Decoding a real token's claims settled it
+  in one round trip; reasoning from the error messages would not have.
 - Schedules are expressed in `Australia/Sydney`, so they hold their local time
   across daylight saving instead of drifting twice a year.
 - Terraform ignores the function's code, and the deploy workflow ignores the

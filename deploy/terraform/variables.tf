@@ -70,3 +70,9 @@ variable "create_github_oidc_provider" {
   type        = bool
   default     = true
 }
+
+variable "deploy_branch" {
+  description = "Only this branch may deploy. Pushes from anywhere else are refused by IAM, not by the workflow."
+  type        = string
+  default     = "main"
+}

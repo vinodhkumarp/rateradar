@@ -271,6 +271,9 @@ data "aws_iam_openid_connect_provider" "github" {
 }
 
 locals {
+  gh_owner = try(split("/", var.github_repository)[0], "")
+  gh_repo  = try(split("/", var.github_repository)[1], "")
+
   github_oidc_arn = (
     var.github_repository == "" ? null :
     var.create_github_oidc_provider
@@ -293,10 +296,37 @@ data "aws_iam_policy_document" "deploy_assume" {
       variable = "token.actions.githubusercontent.com:aud"
       values   = ["sts.amazonaws.com"]
     }
+    # IAM refuses a GitHub trust policy that does not constrain "sub" or
+    # "job_workflow_ref" -- a guard against roles that trust all of GitHub -- so
+    # sub has to be here, and it has to match the format actually issued.
+    #
+    # GitHub changed the default for repositories created after 15 July 2026 to
+    # embed immutable owner and repository IDs:
+    #     repo:vinodhkumarp@80761765/rateradar@1368457965:ref:refs/heads/main
+    # rather than the repo:owner/name:ref:... every tutorial still shows. Both
+    # patterns are listed; the wildcard covers only the numeric ids, so the
+    # owner, repository and branch all remain pinned.
     condition {
       test     = "StringLike"
       variable = "token.actions.githubusercontent.com:sub"
-      values   = ["repo:${var.github_repository}:ref:refs/heads/main"]
+      values = [
+        "repo:${local.gh_owner}@*/${local.gh_repo}@*:ref:refs/heads/${var.deploy_branch}",
+        "repo:${var.github_repository}:ref:refs/heads/${var.deploy_branch}",
+      ]
+    }
+
+    # Belt and braces, and legible: these two say the same thing in claims that
+    # are not subject to the format change above.
+    condition {
+      test     = "StringEquals"
+      variable = "token.actions.githubusercontent.com:repository"
+      values   = [var.github_repository]
+    }
+
+    condition {
+      test     = "StringEquals"
+      variable = "token.actions.githubusercontent.com:ref"
+      values   = ["refs/heads/${var.deploy_branch}"]
     }
   }
 }
