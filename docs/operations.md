@@ -61,11 +61,117 @@ Grafana reads the collector's database directly — no exporter, no shipper, no
 agent. Freshness, per-brand outcomes from the last run, change events by type,
 recent rate movements, and version drift across the estate.
 
-It points at the local Postgres by default. To aim it at Neon instead, set
-`RATERADAR_DB_HOST`, `RATERADAR_DB_USER`, `RATERADAR_DB_PASSWORD`,
-`RATERADAR_DB_NAME` and `RATERADAR_DB_SSLMODE=require` before `make dash`. The
-same dashboard JSON imports into Grafana Cloud's free tier if you would rather
-not run it at all.
+It points at the local Postgres by default. The same dashboard JSON imports into
+Grafana Cloud's free tier if you would rather not run Grafana at all.
+
+#### Pointing the dashboard at Neon
+
+```bash
+make dash-neon
+```
+
+This derives Grafana's connection from the DSN already in `.env` and starts only
+the Grafana container — no local Postgres. The credential is passed through the
+environment of that one command and is never written to a second file.
+
+Where the connection string actually lives, end to end:
+
+1. `.env` on your machine (gitignored) holds `RATERADAR_DATABASE_URL`, and
+   optionally `RATERADAR_GRAFANA_DATABASE_URL`.
+2. `deploy/grafana/neon_env.py` parses that file and prints `export` lines. It
+   parses the file itself rather than letting the shell source it: a Neon DSN
+   contains `&` and the User-Agent contains `(`, and `. ./.env` either
+   backgrounds the assignment or dies outright on those.
+3. `make dash-neon` evals those exports, so the values exist only in that one
+   command's environment.
+4. `docker compose` substitutes them into the `grafana` service's `environment:`
+   block, where they become variables inside the container.
+5. Grafana reads `provisioning/datasources/postgres.yml` at boot, expands
+   `$RATERADAR_DB_*` from the container environment, and stores the resulting
+   datasource in its own SQLite database on the `grafana` volume.
+
+Because step 5 happens **only at boot**, changing `.env` has no effect on a
+running container — which is why `make dash-neon` passes `--force-recreate`.
+
+To check which database Grafana actually ended up talking to, without guessing:
+
+```bash
+docker compose exec grafana env | grep RATERADAR_DB_ | grep -v PASSWORD
+```
+
+If that prints `RATERADAR_DB_HOST=postgres`, the variables did not reach compose
+and Grafana is pointed at the empty local database — that is the "no data" case.
+
+**Give it a read-only role first.** Grafana here runs with anonymous access at
+`Admin`, and an Admin can run arbitrary SQL through the query editor. Handed the
+collector's own credential, anyone who reaches port 3000 can `DELETE FROM
+product_snapshot` — against a dataset that cannot be re-collected. In Neon's SQL
+editor:
+
+```sql
+-- `neondb` is Neon's default database name; use whatever your DSN ends with.
+CREATE ROLE grafana_ro WITH LOGIN PASSWORD 'something-long-and-alphanumeric';
+GRANT CONNECT ON DATABASE neondb TO grafana_ro;
+GRANT USAGE ON SCHEMA public TO grafana_ro;
+GRANT SELECT ON ALL TABLES IN SCHEMA public TO grafana_ro;
+ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT ON TABLES TO grafana_ro;
+```
+
+The last line is the one that is easy to miss: without it the next migration's
+table is invisible to Grafana until someone re-grants by hand. Keep the password
+alphanumeric — Grafana's provisioning treats `$` as the start of a variable, and
+escaping it is not worth the debugging. Then put that role's connection string
+in `.env` as `RATERADAR_GRAFANA_DATABASE_URL`, and `make dash-neon` prefers it
+over `RATERADAR_DATABASE_URL`. The worst case becomes "someone read public bank
+rates", which is what the CDR publishes anyway.
+
+Two Neon-specific notes:
+
+- The compute scales to zero, so the first panel load takes a few seconds while
+  it wakes. That is not a fault.
+- The dashboard ships with auto-refresh **off**, deliberately. A refreshing
+  dashboard left open holds the compute permanently awake and burns through the
+  free tier's hours polling for data that changes twice a day. Refresh by hand.
+
+#### Running the dashboard somewhere other than a laptop
+
+Grafana is **not** part of the deployed stack. The Terraform in `deploy/terraform`
+creates the function, its schedules, the secret, the backup bucket and the alarms
+— and no dashboard. That is deliberate rather than unfinished: Grafana here is a
+viewer over Neon holding no state of its own, and the thing that must be awake at
+3am is the CloudWatch alarm that emails when the collector stops, not the
+dashboard that explains what happened afterwards. Those are different jobs and
+only the first needs to be always-on.
+
+If you do want it hosted, Grafana Cloud's free tier fits: its headline limits
+(metric series, log volume) do not apply here, because nothing is shipped to it —
+it queries Postgres directly. The binding limit is three active users.
+
+1. Create a stack at grafana.com, then add a **PostgreSQL** data source pointing
+   at the Neon endpoint, with `grafana_ro`'s credentials and TLS mode `require`.
+   Neon is reachable over the public internet, so no private-network agent is
+   needed.
+2. Note the new data source's UID — Grafana Cloud assigns its own, and it will
+   not be `rateradar-postgres`. It is in the URL of the data source's settings
+   page, and in `/api/datasources`.
+3. Re-point the dashboard at it and import the result:
+
+   ```bash
+   sed 's/rateradar-postgres/<the-new-uid>/g' \
+     deploy/grafana/dashboards/collector-health.json > /tmp/collector-health.json
+   ```
+
+   Then Dashboards → New → Import → upload `/tmp/collector-health.json`.
+
+Do not give a hosted Grafana the collector's own credential. It would be holding
+a write-capable key to a dataset that cannot be re-collected, on infrastructure
+you do not control; `grafana_ro` reduces the worst case to reading bank rates
+that the CDR already publishes.
+
+Grafana's provisioning interpolation understands `$VAR` and `${VAR}` and nothing
+else — there is no shell-style `${VAR:-default}`. The defaults therefore live in
+`docker-compose.yml`, which does support them, and
+`deploy/grafana/provisioning/datasources/postgres.yml` reads bare variables.
 
 ### Logs (what the code said)
 

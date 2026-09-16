@@ -8,7 +8,7 @@
   "timezone": "browser",
   "schemaVersion": 39,
   "version": 1,
-  "refresh": "5m",
+  "refresh": "",
   "time": {
     "from": "now-30d",
     "to": "now"
@@ -20,7 +20,7 @@
       "title": "Hours since last completed run",
       "description": "Freshness. Above ~14h means a scheduled run was missed; above 30h the scheduler has stopped.",
       "datasource": {
-        "type": "postgres",
+        "type": "grafana-postgresql-datasource",
         "uid": "rateradar-postgres"
       },
       "gridPos": {
@@ -32,7 +32,7 @@
       "targets": [
         {
           "datasource": {
-            "type": "postgres",
+            "type": "grafana-postgresql-datasource",
             "uid": "rateradar-postgres"
           },
           "format": "table",
@@ -96,7 +96,7 @@
       "title": "Products tracked",
       "description": "",
       "datasource": {
-        "type": "postgres",
+        "type": "grafana-postgresql-datasource",
         "uid": "rateradar-postgres"
       },
       "gridPos": {
@@ -108,7 +108,7 @@
       "targets": [
         {
           "datasource": {
-            "type": "postgres",
+            "type": "grafana-postgresql-datasource",
             "uid": "rateradar-postgres"
           },
           "format": "table",
@@ -141,7 +141,7 @@
       "title": "Brands holding no products",
       "description": "An enabled brand yielding nothing is a silent hole, not a success.",
       "datasource": {
-        "type": "postgres",
+        "type": "grafana-postgresql-datasource",
         "uid": "rateradar-postgres"
       },
       "gridPos": {
@@ -153,7 +153,7 @@
       "targets": [
         {
           "datasource": {
-            "type": "postgres",
+            "type": "grafana-postgresql-datasource",
             "uid": "rateradar-postgres"
           },
           "format": "table",
@@ -211,7 +211,7 @@
       "title": "Quarantined payloads",
       "description": "Payloads a bank published that could not be parsed. Kept, never dropped.",
       "datasource": {
-        "type": "postgres",
+        "type": "grafana-postgresql-datasource",
         "uid": "rateradar-postgres"
       },
       "gridPos": {
@@ -223,7 +223,7 @@
       "targets": [
         {
           "datasource": {
-            "type": "postgres",
+            "type": "grafana-postgresql-datasource",
             "uid": "rateradar-postgres"
           },
           "format": "table",
@@ -281,7 +281,7 @@
       "title": "Rate changes, last 7 days",
       "description": "Zero for a week points at the differ, not at a quiet market.",
       "datasource": {
-        "type": "postgres",
+        "type": "grafana-postgresql-datasource",
         "uid": "rateradar-postgres"
       },
       "gridPos": {
@@ -293,7 +293,7 @@
       "targets": [
         {
           "datasource": {
-            "type": "postgres",
+            "type": "grafana-postgresql-datasource",
             "uid": "rateradar-postgres"
           },
           "format": "table",
@@ -326,7 +326,7 @@
       "title": "Run outcomes",
       "description": "After the first full collection, new snapshots should be small. A spike is either an RBA week or a normaliser regression.",
       "datasource": {
-        "type": "postgres",
+        "type": "grafana-postgresql-datasource",
         "uid": "rateradar-postgres"
       },
       "gridPos": {
@@ -338,7 +338,7 @@
       "targets": [
         {
           "datasource": {
-            "type": "postgres",
+            "type": "grafana-postgresql-datasource",
             "uid": "rateradar-postgres"
           },
           "format": "time_series",
@@ -358,7 +358,7 @@
       "title": "Change events by type",
       "description": "A rising OTHER_CHANGED count is the signal to extend the classifier.",
       "datasource": {
-        "type": "postgres",
+        "type": "grafana-postgresql-datasource",
         "uid": "rateradar-postgres"
       },
       "gridPos": {
@@ -370,7 +370,7 @@
       "targets": [
         {
           "datasource": {
-            "type": "postgres",
+            "type": "grafana-postgresql-datasource",
             "uid": "rateradar-postgres"
           },
           "format": "time_series",
@@ -390,7 +390,7 @@
       "title": "Last run, by brand",
       "description": "Failures first. This is the ledger view that says whether the dataset has holes.",
       "datasource": {
-        "type": "postgres",
+        "type": "grafana-postgresql-datasource",
         "uid": "rateradar-postgres"
       },
       "gridPos": {
@@ -402,7 +402,7 @@
       "targets": [
         {
           "datasource": {
-            "type": "postgres",
+            "type": "grafana-postgresql-datasource",
             "uid": "rateradar-postgres"
           },
           "format": "table",
@@ -459,7 +459,7 @@
       "title": "Recent rate movements",
       "description": "The product. Every row is a bank moving a rate, with the size of the move in basis points.",
       "datasource": {
-        "type": "postgres",
+        "type": "grafana-postgresql-datasource",
         "uid": "rateradar-postgres"
       },
       "gridPos": {
@@ -471,7 +471,7 @@
       "targets": [
         {
           "datasource": {
-            "type": "postgres",
+            "type": "grafana-postgresql-datasource",
             "uid": "rateradar-postgres"
           },
           "format": "table",
@@ -522,7 +522,7 @@
       "title": "Negotiated API version across the estate",
       "description": "Version drift. The standard is one thing; the implementations are another.",
       "datasource": {
-        "type": "postgres",
+        "type": "grafana-postgresql-datasource",
         "uid": "rateradar-postgres"
       },
       "gridPos": {
@@ -534,7 +534,7 @@
       "targets": [
         {
           "datasource": {
-            "type": "postgres",
+            "type": "grafana-postgresql-datasource",
             "uid": "rateradar-postgres"
           },
           "format": "table",

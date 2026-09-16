@@ -39,6 +39,7 @@ rateradar changes --days 1                 # see what it found
 rateradar health                           # freshness, failures, quarantine
 
 make dash                                  # Grafana over the run ledger, localhost:3000
+make dash-neon                             # ...the same dashboard, pointed at Neon
 ```
 
 `make check` runs everything CI runs: ruff, mypy, pytest.

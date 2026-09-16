@@ -1,20 +1,26 @@
 # Grafana reads the collector's own database directly. No exporter, no shipper,
 # no agent: the run ledger is already structured, and turning it into log lines
 # first would only lose the structure.
+#
+# Grafana's provisioning interpolation supports $VAR and ${VAR} ONLY -- there is
+# no shell-style "${VAR:-default}", which an earlier version of this file used
+# and which silently resolved to empty. Defaults therefore live in
+# docker-compose.yml, which does support them. The bare $VAR form is also safer
+# than ${VAR} when a value contains a literal $, as generated passwords do.
 apiVersion: 1
 
 datasources:
   - name: RateRadar
     uid: rateradar-postgres
-    type: postgres
+    type: grafana-postgresql-datasource
     access: proxy
-    url: ${RATERADAR_DB_HOST:-postgres}:5432
-    user: ${RATERADAR_DB_USER:-rateradar}
-    database: ${RATERADAR_DB_NAME:-rateradar}
+    url: $RATERADAR_DB_HOST:$RATERADAR_DB_PORT
+    user: $RATERADAR_DB_USER
+    database: $RATERADAR_DB_NAME
     isDefault: true
     secureJsonData:
-      password: ${RATERADAR_DB_PASSWORD:-rateradar}
+      password: $RATERADAR_DB_PASSWORD
     jsonData:
-      sslmode: ${RATERADAR_DB_SSLMODE:-disable}
+      sslmode: $RATERADAR_DB_SSLMODE
       postgresVersion: 1600
       timescaledb: false

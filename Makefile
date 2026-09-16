@@ -36,8 +36,14 @@ typecheck:       ## Static types
 
 check: lint typecheck test  ## Everything CI runs
 
-dash:            ## Grafana over the run ledger at http://localhost:3000
+dash:            ## Grafana over the local run ledger at http://localhost:3000
 	docker compose up -d postgres grafana
+	@echo "dashboard: http://localhost:3000/d/rateradar-collector"
+
+dash-neon:       ## Same dashboard, pointed at Neon. Reads .env; writes nothing.
+	@eval "$$(python3 deploy/grafana/neon_env.py)" || exit 1; \
+	  echo "grafana -> $$RATERADAR_DB_USER@$$RATERADAR_DB_HOST/$$RATERADAR_DB_NAME"; \
+	  docker compose up -d --no-deps --force-recreate grafana
 	@echo "dashboard: http://localhost:3000/d/rateradar-collector"
 
 dash-down:       ## Stop Grafana

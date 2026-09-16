@@ -18,19 +18,32 @@ services:
   # structured; turning it into log lines first would only lose the structure.
   grafana:
     image: grafana/grafana:latest
-    ports: ["3000:3000"]
+    # Loopback only. Anonymous access is Admin, and an Admin can run arbitrary
+    # SQL through the query editor -- so this port must not be reachable from
+    # the network, least of all once it holds a real Neon credential.
+    ports: ["127.0.0.1:3000:3000"]
     environment:
       GF_AUTH_ANONYMOUS_ENABLED: "true"
       GF_AUTH_ANONYMOUS_ORG_ROLE: Admin
       GF_AUTH_DISABLE_LOGIN_FORM: "true"
       GF_USERS_DEFAULT_THEME: light
+      # Where the dashboard points. Compose *does* support shell-style defaults
+      # (Grafana's own provisioning does not), so the local stack needs no
+      # configuration at all and `make dash-neon` overrides these from the DSN
+      # already in .env -- without the password being written down a second time.
+      RATERADAR_DB_HOST: ${RATERADAR_DB_HOST:-postgres}
+      RATERADAR_DB_PORT: ${RATERADAR_DB_PORT:-5432}
+      RATERADAR_DB_NAME: ${RATERADAR_DB_NAME:-rateradar}
+      RATERADAR_DB_USER: ${RATERADAR_DB_USER:-rateradar}
+      RATERADAR_DB_PASSWORD: ${RATERADAR_DB_PASSWORD:-rateradar}
+      RATERADAR_DB_SSLMODE: ${RATERADAR_DB_SSLMODE:-disable}
     volumes:
       - ./deploy/grafana/provisioning:/etc/grafana/provisioning:ro
       - ./deploy/grafana/dashboards:/var/lib/grafana/dashboards:ro
       - grafana:/var/lib/grafana
-    depends_on:
-      postgres:
-        condition: service_healthy
+    # Deliberately no depends_on: pointed at Neon there is no local Postgres to
+    # wait for, and provisioning only writes configuration -- the first query
+    # happens long after boot. `make dash` starts postgres explicitly.
 
 volumes:
   pgdata:
