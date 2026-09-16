@@ -101,7 +101,7 @@ def _backup(settings: Settings) -> dict[str, Any]:
     """Dump every table to S3 as gzipped CSV, with a manifest.
 
     Lambda has no pg_dump, so this uses SQL COPY. The result is plain CSV:
-    restorable with \copy, readable without this codebase, and indifferent to
+    restorable with \\copy, readable without this codebase, and indifferent to
     which Postgres version wrote it.
 
     The dataset cannot be re-collected retrospectively -- a month of rate
