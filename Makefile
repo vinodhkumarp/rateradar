@@ -4,8 +4,8 @@
 help:            ## Show this help
 	@grep -E '^[a-z-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN{FS=":.*?## "}{printf "  %-12s %s\n", $$1, $$2}'
 
-setup:           ## Create venv and install dev dependencies
-	python -m venv .venv && .venv/bin/pip install -e ".[dev]"
+setup:           ## Create .venv from uv.lock and install dev dependencies
+	uv sync --extra dev
 
 db-up:           ## Start local Postgres
 	docker compose up -d postgres
